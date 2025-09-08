@@ -81,7 +81,7 @@ app.get("/", (_req, res) => {
     res.send("Chatbot backend is running.");
 });
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3006;
 app.listen(PORT, () => {
     console.log(`Server listening on http://localhost:${PORT}`);
 });
