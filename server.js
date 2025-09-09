@@ -1,87 +1,154 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import fetch from "node-fetch";
+import express from 'express';
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import axios from 'axios';
 
-dotenv.config();
 const app = express();
-// Allow requests from your cPanel domain and localhost for development
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3003',
-  'https://ds-landing.42web.io', // Your actual domain
-  'https://www.ds-landing.42web.io', // Your actual domain with www
-  'https://chat-app.infinityfree.me', // Your actual hosting domain
-  'http://69.197.187.24:3003', // Your React frontend
-  'https://69.197.187.24:3003', // Your React frontend (HTTPS)
-];
+const PORT = process.env.PORT || 5111;
 
-app.use(cors({ 
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+
+// Simple response generation logic
+const generateResponse = (userMessage) => {
+  const message = userMessage.toLowerCase().trim();
+  
+  // Basic keyword matching with more sophisticated responses
+  if (message.includes('hello') || message.includes('hi') || message.includes('hey')) {
+    return {
+      text: "Hello! I'm your AI assistant. How can I help you today?",
+      confidence: 0.9
+    };
+  }
+  
+  if (message.includes('help')) {
+    return {
+      text: "I'm here to assist you! I can help with general questions, provide information, or just have a conversation. What would you like to know?",
+      confidence: 0.8
+    };
+  }
+  
+  if (message.includes('thanks') || message.includes('thank you')) {
+    return {
+      text: "You're very welcome! I'm happy to help. Is there anything else you'd like to know?",
+      confidence: 0.9
+    };
+  }
+  
+  if (message.includes('goodbye') || message.includes('bye')) {
+    return {
+      text: "Goodbye! It was nice chatting with you. Have a wonderful day!",
+      confidence: 0.9
+    };
+  }
+  
+  if (message.includes('how are you') || message.includes('how do you feel')) {
+    return {
+      text: "I'm doing great, thank you for asking! I'm always ready to help and learn new things. How are you doing today?",
+      confidence: 0.8
+    };
+  }
+  
+  if (message.includes('weather')) {
+    return {
+      text: "I don't have access to real-time weather data, but I'd recommend checking a weather service like Weather.com or your local weather app for current conditions!",
+      confidence: 0.7
+    };
+  }
+  
+  if (message.includes('time') || message.includes('date')) {
+    const now = new Date();
+    return {
+      text: `The current time is ${now.toLocaleString()}. Is there anything specific about time or scheduling I can help you with?`,
+      confidence: 0.8
+    };
+  }
+  
+  if (message.includes('name')) {
+    return {
+      text: "I'm an AI assistant created to help you with various tasks and questions. You can call me whatever you'd like! What's your name?",
+      confidence: 0.7
+    };
+  }
+  
+  // Default response for unrecognized messages
+  const defaultResponses = [
+    "That's an interesting question! Could you tell me more about what you're looking for?",
+    "I'm not sure I fully understand. Could you rephrase that or ask me something else?",
+    "That's a great point! I'd love to help, but could you provide a bit more context?",
+    "I'm here to help! Could you be more specific about what you need assistance with?",
+    "Interesting! I'm still learning, but I'd be happy to try to help if you can give me more details."
+  ];
+  
+  const randomResponse = defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
+  
+  return {
+    text: randomResponse,
+    confidence: 0.3
+  };
+};
+
+// API endpoint to get chatbot response
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message } = req.body;
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log('CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ 
+        error: 'Message is required and must be a string' 
+      });
     }
-  },
-  credentials: true 
-}));
-app.use(express.json());
-
-/**
- * Simple responder
- * - By default: a basic, rules + echo bot (no external API).
- * - If you have a model API key (e.g., OPENAI_API_KEY), uncomment the AI code below.
- */
-function basicResponder(history) {
-    const lastUser = [...history].reverse().find(m => m.role === "user");
-    const text = lastUser?.content?.trim() || "Hello!";
-    if (/hello|hi|hey/i.test(text)) return "Hi! How can I help?";
-    if (/help|support/i.test(text)) return "Tell me what you’re trying to do—I'll walk you through it.";
-    return `You said: "${text}". I’m a demo bot—ask me anything.`;
-}
-
-app.post("/api/chat", async (req, res) => {
-    try {
-        const { messages = [] } = req.body;
-
-        // --- BASIC (no external API) ---
-        const reply = basicResponder(messages);
-        return res.json({ reply });
-
-        // --- AI VIA PROVIDER (optional) ---
-        // if (!process.env.OPENAI_API_KEY) {
-        //   return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
-        // }
-        // const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        //   method: "POST",
-        //   headers: {
-        //     "Content-Type": "application/json",
-        //     "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
-        //   },
-        //   body: JSON.stringify({
-        //     model: "gpt-4o-mini",
-        //     messages
-        //   })
-        // });
-        // const data = await response.json();
-        // const aiText = data?.choices?.[0]?.message?.content ?? "Sorry, I couldn't generate a reply.";
-        // return res.json({ reply: aiText });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Server error" });
-    }
+    
+    // Generate response
+    const response = generateResponse(message);
+    
+    // Add timestamp
+    const botResponse = {
+      id: Date.now(),
+      text: response.text,
+      sender: 'bot',
+      timestamp: new Date().toLocaleTimeString(),
+      confidence: response.confidence
+    };
+    
+    // Simulate some processing time
+    await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
+    
+    res.json(botResponse);
+    
+  } catch (error) {
+    console.error('Error generating response:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: 'Sorry, I encountered an error. Please try again.'
+    });
+  }
 });
 
-app.get("/", (_req, res) => {
-    res.send("Chatbot backend is running.");
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Chatbot API is running',
+    timestamp: new Date().toISOString()
+  });
 });
 
-const PORT = process.env.PORT || 3006;
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Chatbot Backend API',
+    version: '1.0.0',
+    endpoints: {
+      'POST /api/chat': 'Send a message to get a response',
+      'GET /api/health': 'Check API health status'
+    }
+  });
+});
+
 app.listen(PORT, () => {
-    console.log(`Server listening on http://localhost:${PORT}`);
+  console.log(`🚀 Chatbot backend server running on port ${PORT}`);
+  console.log(`📡 API available at http://localhost:${PORT}`);
+  console.log(`🏥 Health check at http://localhost:${PORT}/api/health`);
 });
